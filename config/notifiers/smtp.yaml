@@ -1,0 +1,11 @@
+notifiers:
+  smtp:
+    type: "smtp_mail"
+    host: "${SMTP_HOST}"
+    port: "${SMTP_PORT}"
+    user: "${SMTP_USER}"
+    password: "${SMTP_PASS}"
+    from: "${SMTP_USER}"
+    to: ["${SMTP_TO}"]
+    subject_prefix: "[ALARMFW]"
+    use_tls: true

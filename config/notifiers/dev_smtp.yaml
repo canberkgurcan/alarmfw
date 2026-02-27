@@ -1,0 +1,9 @@
+notifiers:
+  dev_smtp:
+    type: "smtp_mail"
+    host: "mailpit"
+    port: 1025
+    use_tls: false
+    from: "alarmfw@test.local"
+    to: ["dev@test.local"]
+    subject_prefix: "[ALARMFW-TEST]"

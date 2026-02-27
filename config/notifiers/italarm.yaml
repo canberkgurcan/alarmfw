@@ -1,0 +1,12 @@
+notifiers:
+  italarm:
+    type: "italarm_webhook"
+    url: "${ITALARM_URL}"
+    timeout_sec: 10
+    tablename: "italarm"
+    # description_template isteğe bağlı — aşağıdaki değer varsayılandır,
+    # namespace/cluster adları otomatik doldurulur.
+    # description_template: "[OCP POD HEALTH] Namespace={namespace} Cluster={cluster} - Pod sağlığını kontrol ediniz."
+    auth:
+      type: "bearer"
+      token: "${ITALARM_TOKEN}"

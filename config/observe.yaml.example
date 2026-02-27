@@ -1,0 +1,16 @@
+# alarmfw-observe cluster overrides
+# Bu dosyayı kopyalayıp observe.yaml olarak kaydedin ve gerçek değerleri girin.
+# Token dosyaları: /secrets/<cluster>-prometheus.token ve /secrets/<cluster>-loki.token
+
+clusters:
+  <cluster1-name>:
+    prometheus_url: "https://prometheus-k8s-openshift-monitoring.apps.<cluster1>.<domain>"
+    loki_url: ""
+
+  <cluster2-name>:
+    prometheus_url: ""
+    loki_url: ""
+
+  <cluster3-name>:
+    prometheus_url: "https://prometheus-k8s-openshift-monitoring.apps.<cluster3>.<domain>"
+    loki_url: ""
