@@ -1,0 +1,11 @@
+includes:
+  - notifiers/zabbix.yaml
+  - notifiers/smtp.yaml
+  - policies/dedup.yaml
+  - checks/dummy.yaml
+  - checks/shell_example.yaml
+
+runtime:
+  lock_file: "/state/alarmfw.lock"
+  state_db: "/state/alarmfw.sqlite"
+  log_level: "INFO"

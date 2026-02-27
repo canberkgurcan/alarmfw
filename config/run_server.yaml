@@ -1,0 +1,14 @@
+includes:
+  - notifiers/zabbix.yaml
+  - notifiers/smtp.yaml
+  - notifiers/dev_smtp.yaml
+  - notifiers/dev_outbox.yaml
+  - policies/dedup.yaml
+  - generated/ocp_pod_health.yaml
+
+runtime:
+  lock_file: "/state/alarmfw.lock"
+  state_db: "/state/alarmfw.sqlite"
+  log_level: "INFO"
+  dry_run: false
+  interval_sec: 300   # 5 dakikada bir çalış

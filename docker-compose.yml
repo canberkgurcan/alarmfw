@@ -1,0 +1,72 @@
+services:
+  alarmfw:
+    build: .
+    image: alarmfw:latest
+    restart: unless-stopped
+    environment:
+      - ZABBIX_URL=${ZABBIX_URL}
+      - ZABBIX_TOKEN=${ZABBIX_TOKEN}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_TO=${SMTP_TO}
+      - OCP_API_ESY2_DIGITAL=${OCP_API_ESY2_DIGITAL}
+      - OCP_API_ESY_DIGITAL=${OCP_API_ESY_DIGITAL}
+      - OCP_API_IZM_DIGITAL=${OCP_API_IZM_DIGITAL}
+    volumes:
+      - ./config:/config:ro
+      - /home/cnbrkgrcn/alarmfw-secrets:/secrets:ro
+      - ./state:/state
+    command: ["run", "--config", "/config/run_server.yaml"]
+
+  alarmfw-api:
+    build: ../alarmfw-api
+    image: alarmfw-api:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ALARMFW_ROOT=/home/cnbrkgrcn/projects/alarmfw
+      - ALARMFW_CONFIG=/home/cnbrkgrcn/projects/alarmfw/config
+      - ALARMFW_STATE=/home/cnbrkgrcn/projects/alarmfw/state
+      - ALARMFW_SECRETS=/home/cnbrkgrcn/alarmfw-secrets
+      - ALARMFW_ENV=/home/cnbrkgrcn/projects/alarmfw/.env
+    volumes:
+      - /home/cnbrkgrcn/projects/alarmfw:/home/cnbrkgrcn/projects/alarmfw
+      - /home/cnbrkgrcn/alarmfw-secrets:/home/cnbrkgrcn/alarmfw-secrets
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  alarmfw-ui:
+    build: ../alarmfw-ui
+    image: alarmfw-ui:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - API_URL=http://alarmfw-api:8000
+      - NEXT_PUBLIC_OBSERVE_URL=http://localhost:8001
+      - OBSERVE_URL=http://alarmfw-observe:8001
+    depends_on:
+      - alarmfw-api
+
+  alarmfw-observe:
+    build: ../alarmfw-observe
+    image: alarmfw-observe:latest
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - ALARMFW_CONFIG=/home/cnbrkgrcn/projects/alarmfw/config
+      - ALARMFW_SECRETS=/secrets
+    volumes:
+      - /home/cnbrkgrcn/projects/alarmfw/config:/home/cnbrkgrcn/projects/alarmfw/config:ro
+      - /home/cnbrkgrcn/alarmfw-secrets:/secrets:ro
+
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"

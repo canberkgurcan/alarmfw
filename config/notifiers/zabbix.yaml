@@ -1,0 +1,10 @@
+notifiers:
+  zabbix:
+    type: "zabbix_http"
+    url: "${ZABBIX_URL}"
+    timeout_sec: 10
+    headers:
+      Content-Type: "application/json"
+    auth:
+      type: "bearer"
+      token: "${ZABBIX_TOKEN}"

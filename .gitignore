@@ -1,0 +1,27 @@
+# Hassas bilgiler - GIT'E GİRMEZ
+.env
+
+# Geçici/accidental dosyalar
+0
+config/generated/
+config/observe.yaml
+config/run_local.yaml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Runtime state
+state/
+*.sqlite
+*.lock
+
+# IDE
+.vscode/
+.idea/

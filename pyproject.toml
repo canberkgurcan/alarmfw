@@ -1,0 +1,18 @@
+[project]
+name = "alarmfw"
+version = "0.1.0"
+description = "Alarm framework (docker + yaml + sqlite dedup + zabbix + smtp fallback)"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6.0.1",
+  "requests>=2.32.0",
+]
+
+[project.scripts]
+alarmfw = "alarmfw.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
