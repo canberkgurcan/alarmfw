@@ -130,20 +130,27 @@ oc apply -f ocp/pvc.yaml -n alarmfw-prod
 
 Jenkins'te her repo için pipeline tanımla ve şu değişkenleri ekle:
 
-| Değişken | Açıklama |
-|---|---|
-| `REGISTRY_URL` | Nexus/Harbor adresi (ör: `nexus.internal:5000`) |
-| `REGISTRY_CREDS` | Jenkins credential ID (Docker registry) |
-| `OCP_API_URL` | OpenShift API endpoint |
-| `OCP_TOKEN_CREDS` | Jenkins credential ID (OCP service account token) |
-| `DEPLOY_NAMESPACE` | Deploy namespace (ör: `alarmfw-prod`) |
-| `OCP_APPS_DOMAIN` | OCP apps domain — **sadece alarmfw-ui için** |
+| Değişken | Repo | Açıklama |
+|---|---|---|
+| `REGISTRY_URL` | hepsi | Nexus registry adresi (ör: `nexus.internal:5000`) |
+| `REGISTRY_CREDS` | hepsi | Jenkins credential ID (Docker kullanıcı/şifre) |
+| `OCP_API_URL` | hepsi | OpenShift API endpoint (ör: `https://api.cluster.local:6443`) |
+| `OCP_TOKEN_CREDS` | hepsi | Jenkins credential ID (OCP service account token) |
+| `DEPLOY_NAMESPACE` | hepsi | Deploy namespace (ör: `alarmfw-prod`) |
+| `OCP_APPS_DOMAIN` | yalnızca alarmfw-ui | OCP apps domain — `NEXT_PUBLIC_*` URL'leri türetilir |
+
+Her Jenkinsfile 4 stage içerir: **Checkout SCM → Docker Build → Nexus Push → OCP Deploy**
 
 Pipeline sırası önemli değil, paralel çalıştırılabilir:
 - `alarmfw` → `alarmfw/Jenkinsfile`
 - `alarmfw-api` → `alarmfw-api/Jenkinsfile`
 - `alarmfw-observe` → `alarmfw-observe/Jenkinsfile`
 - `alarmfw-ui` → `alarmfw-ui/Jenkinsfile`
+
+> **Not:** `ocp/pvc.yaml` pipeline'a dahil değildir. İlk kurulumda bir kez elle uygulanır:
+> ```bash
+> oc apply -f ocp/pvc.yaml -n alarmfw-prod
+> ```
 
 ### 5. UI Route'unu Kontrol Et
 
