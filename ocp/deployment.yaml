@@ -1,0 +1,52 @@
+# alarmfw — alarm runner servisi
+# Image: ${REGISTRY_URL}/alarmfw:latest
+# PVC'ler önce oluşturulmalı: oc apply -f pvc.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alarmfw
+  labels:
+    app: alarmfw
+    app.kubernetes.io/part-of: alarmfw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alarmfw
+  template:
+    metadata:
+      labels:
+        app: alarmfw
+    spec:
+      containers:
+        - name: alarmfw
+          image: REGISTRY_URL/alarmfw:latest   # Jenkinsfile tarafından güncellenir
+          env:
+            - name: ALARMFW_CONFIG
+              value: /config
+            - name: ALARMFW_SECRETS
+              value: /secrets
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: secrets
+              mountPath: /secrets
+            - name: state
+              mountPath: /state
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: alarmfw-config
+        - name: secrets
+          persistentVolumeClaim:
+            claimName: alarmfw-secrets
+        - name: state
+          emptyDir: {}

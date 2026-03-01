@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import re
-import shutil
-import subprocess
-import tempfile
+import requests
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -162,69 +159,21 @@ def _is_problem(issue: PodIssue) -> bool:
     return False
 
 
-def _oc(*args: str, timeout_sec: int, kubeconfig_path: str) -> Tuple[int, str, str]:
-    env = os.environ.copy()
-    env["KUBECONFIG"] = kubeconfig_path
-    p = subprocess.run(
-        ["oc", *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=timeout_sec,
-        env=env,
-    )
-    return p.returncode, p.stdout, p.stderr
-
-
-def _login_and_get_pods(
+def _get_pods_http(
     api: str,
-    token_file: str,
+    token: str,
     insecure: bool,
     namespace: str,
     timeout_sec: int,
 ) -> Dict[str, Any]:
-    with tempfile.NamedTemporaryFile(prefix="alarmfw_ocp_", suffix=".kubeconfig", delete=False) as tf:
-        kubeconfig_path = tf.name
-    os.chmod(kubeconfig_path, 0o600)
-
-    try:
-        with open(token_file, "r", encoding="utf-8") as f:
-            token = f.read().strip()
-
-        login_args = ["login", f"--server={api}", f"--token={token}"]
-        if insecure:
-            login_args.append("--insecure-skip-tls-verify=true")
-
-        rc, _, err = _oc(*login_args, timeout_sec=timeout_sec, kubeconfig_path=kubeconfig_path)
-        if rc != 0:
-            raise RuntimeError(f"oc login failed rc={rc} err={err.strip()[:400]}")
-
-        # project switch soft (best-effort)
-        _oc("project", namespace, timeout_sec=timeout_sec, kubeconfig_path=kubeconfig_path)
-
-        rc, out, err = _oc(
-            "get",
-            "pods",
-            "-n",
-            namespace,
-            "-o",
-            "json",
-            timeout_sec=timeout_sec,
-            kubeconfig_path=kubeconfig_path,
-        )
-        if rc != 0:
-            raise RuntimeError(f"oc get pods failed rc={rc} err={err.strip()[:400]}")
-
-        return json.loads(out)
-    finally:
-        try:
-            _oc("logout", timeout_sec=10, kubeconfig_path=kubeconfig_path)
-        except Exception:
-            pass
-        try:
-            os.remove(kubeconfig_path)
-        except Exception:
-            pass
+    resp = requests.get(
+        f"{api}/api/v1/namespaces/{namespace}/pods",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        timeout=timeout_sec,
+        verify=not insecure,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 class OcpPodHealthCheck:
@@ -244,14 +193,12 @@ class OcpPodHealthCheck:
         self.timeout_sec = int(params.get("timeout_sec", 30))
 
     def run(self) -> Dict[str, Any]:
-        if not shutil.which("oc"):
-            return {
-                "status": "PROBLEM",
-                "message": "oc binary not found in container",
-                "evidence": {"namespace": self.namespace, "cluster": self.cluster},
-            }
+        with open(self.token_file, "r", encoding="utf-8") as f:
+            token = f.read().strip()
+        if not token:
+            raise RuntimeError(f"Token dosyası boş: {self.token_file}")
 
-        pods = _login_and_get_pods(self.api, self.token_file, self.insecure, self.namespace, self.timeout_sec)
+        pods = _get_pods_http(self.api, token, self.insecure, self.namespace, self.timeout_sec)
 
         issues: List[PodIssue] = []
         for item in (pods.get("items") or []):
@@ -346,33 +293,16 @@ def run(params: dict) -> "CheckResult":
         "severity_num": str(params.get("severity", "5")),
     }
 
-    # oc yoksa PROBLEM dön, crash değil.
-    if not shutil.which("oc"):
-        payload = AlarmPayload(
-            alarm_name=alarm_name,
-            status=Status.PROBLEM,
-            severity=Severity.CRITICAL,
-            message="oc binary not found in container",
-            timestamp_utc=utc_now_iso(),
-            tags=base_tags,
-            evidence={"namespace": namespace, "cluster": cluster},
-        )
-        return CheckResult(payload=payload)
-
     try:
-        # --- EXPAND before oc login happens (via _login_and_get_pods) ---
         ocp_api = expand_env(str(params.get("ocp_api", ""))).strip()
-
-        # Fail fast if still not expanded
         if "${" in ocp_api:
             raise ValueError(f"ocp_api env not expanded: {ocp_api}")
 
-        # Ensure the class uses expanded values
         params2 = dict(params)
         params2["ocp_api"] = ocp_api
 
         chk = OcpPodHealthCheck(params2)
-        out = chk.run()  # class dict dönüyor
+        out = chk.run()
     except Exception as e:
         payload = AlarmPayload(
             alarm_name=alarm_name,

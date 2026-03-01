@@ -1,4 +1,5 @@
 import importlib
+import json
 import logging
 from typing import Any, Dict, List, Tuple
 
@@ -38,16 +39,63 @@ def _should_notify(store: SqliteStateStore, policy: DedupPolicy, result: CheckRe
     if prev_status != payload.status:
         if prev_status != Status.OK and payload.status == Status.OK:
             is_recovery = True
-            return (policy.recovery_notify, True)
+            if not policy.recovery_notify:
+                return (False, True)
+            # recovery_cooldown_sec: problem başlangıcından bu yana yeterli süre geçmeden bildirim gönderme
+            if policy.recovery_cooldown_sec > 0 and _last_change_ts is not None:
+                if (now - _last_change_ts) < policy.recovery_cooldown_sec:
+                    return (False, True)
+            return (True, True)
         return (payload.status != Status.OK, False)
 
     if payload.status == Status.OK:
         return (False, False)
 
-    interval = policy.error_repeat_interval_sec if payload.status == Status.ERROR else policy.repeat_interval_sec
+    interval = (
+        result.repeat_interval_override
+        if result.repeat_interval_override is not None
+        else (policy.error_repeat_interval_sec if payload.status == Status.ERROR else policy.repeat_interval_sec)
+    )
     if last_sent_ts is None:
         return (True, False)
     return ((now - last_sent_ts) >= interval, False)
+
+def _process_result(
+    store: SqliteStateStore,
+    policy: DedupPolicy,
+    fanout: NotifierFanout,
+    result: CheckResult,
+    primary: List[str],
+    fallback: List[str],
+) -> int:
+    """Tek bir CheckResult için dedup + notify. Döner: 0=ok, 1=problem, 2=notify_error."""
+    payload = result.payload
+    key = payload.dedup_key()
+    now = store.now_ts()
+
+    notify_now, _is_recovery = _should_notify(store, policy, result)
+
+    prev = store.get(key)
+    last_change_ts = now if (prev is None or prev[0] != payload.status.value) else (prev[2] if prev else now)
+
+    alarm_name = payload.alarm_name
+    payload_json = json.dumps(payload.to_dict())
+
+    if notify_now:
+        try:
+            # ERROR durumunda SMTP fallback'e gitme — sadece Zabbix/primary dene
+            effective_fallback = [] if payload.status == Status.ERROR else fallback
+            fanout.send_with_fallback(payload.to_dict(), primary=primary, fallback=effective_fallback)
+            store.upsert(key, payload.status, now, last_change_ts, alarm_name=alarm_name, payload_json=payload_json)
+        except Exception as e:
+            log.error("Notify failed for %s: %s", payload.alarm_name, e)
+            store.upsert(key, payload.status, (prev[1] if prev else None), last_change_ts, alarm_name=alarm_name, payload_json=payload_json)
+            return 2
+    else:
+        store.upsert(key, payload.status, (prev[1] if prev else None), last_change_ts, alarm_name=alarm_name, payload_json=payload_json)
+
+    return 1 if payload.status in (Status.PROBLEM, Status.ERROR) else 0
+
 
 def run_all(cfg: Dict[str, Any]) -> int:
     runtime = cfg.get("runtime", {}) or {}
@@ -78,7 +126,7 @@ def run_all(cfg: Dict[str, Any]) -> int:
 
         try:
             runner = _load_check_runner(ctype)
-            result: CheckResult = runner({**params, "alarm_name": name})
+            raw = runner({**params, "alarm_name": name})
         except Exception as e:
             payload = AlarmPayload(
                 alarm_name=name,
@@ -89,29 +137,13 @@ def run_all(cfg: Dict[str, Any]) -> int:
                 tags={"type": ctype},
                 evidence={},
             )
-            result = CheckResult(payload=payload)
+            raw = CheckResult(payload=payload)
 
-        payload = result.payload
-        key = payload.dedup_key()
-        now = store.now_ts()
+        # Runner tek CheckResult veya List[CheckResult] döndürebilir
+        results: List[CheckResult] = raw if isinstance(raw, list) else [raw]
 
-        notify_now, _is_recovery = _should_notify(store, policy, result)
-
-        prev = store.get(key)
-        last_change_ts = now if (prev is None or prev[0] != payload.status.value) else (prev[2] if prev else now)
-
-        if notify_now:
-            try:
-                fanout.send_with_fallback(payload.to_dict(), primary=primary, fallback=fallback)
-                store.upsert(key, payload.status, now, last_change_ts)
-            except Exception as e:
-                log.error("Notify failed for %s: %s", name, e)
-                store.upsert(key, payload.status, (prev[1] if prev else None), last_change_ts)
-                exit_code = 2
-        else:
-            store.upsert(key, payload.status, (prev[1] if prev else None), last_change_ts)
-
-        if payload.status in (Status.PROBLEM, Status.ERROR):
-            exit_code = max(exit_code, 1)
+        for result in results:
+            code = _process_result(store, policy, fanout, result, primary, fallback)
+            exit_code = max(exit_code, code)
 
     return exit_code

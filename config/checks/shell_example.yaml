@@ -1,0 +1,11 @@
+checks:
+  - name: shell_disk_check
+    type: shell_command
+    enabled: false   # örnek — kullanmak için true yapın
+    params:
+      command: "df / | awk 'NR==2 {gsub(\"%\",\"\",$5); exit ($5 > 90 ? 1 : 0)}'"
+      timeout_sec: 10
+    notify:
+      primary:
+        - dev_outbox
+      fallback: []
