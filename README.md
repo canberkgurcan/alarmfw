@@ -1,17 +1,200 @@
-# alarmfw
+# AlarmFW
 
-## Build
-docker build -t alarmfw:latest .
+OpenShift pod sağlığını izleyen, Zabbix ve SMTP üzerinden alarm gönderen monitoring sistemi.
 
-## Run (compose)
-cp config/examples/minimal.env .env
-mkdir -p state
-docker compose up --build --abort-on-container-exit
+## Servisler
 
-## Run (plain docker)
-docker run --rm \
-  -e ZABBIX_URL -e ZABBIX_TOKEN \
-  -e SMTP_HOST -e SMTP_PORT -e SMTP_USER -e SMTP_PASS -e SMTP_TO \
-  -v "$PWD/config:/config:ro" \
-  -v "$PWD/state:/state" \
-  alarmfw:latest run --config /config/base.yaml
+| Servis | Port | Açıklama |
+|---|---|---|
+| `alarmfw` | — | Python alarm runner (periyodik check döngüsü) |
+| `alarmfw-api` | 8000 | FastAPI yönetim API'si |
+| `alarmfw-observe` | 8001 | FastAPI gözlem API'si (Prometheus, OCP events) |
+| `alarmfw-ui` | 3000 | Next.js yönetim arayüzü |
+
+---
+
+## Docker Compose ile Kurulum (Linux Host)
+
+### 1. Repoları Klonla
+
+```bash
+# Tüm servisler aynı dizin altında olmalı
+mkdir -p ~/alarmfw-workspace && cd ~/alarmfw-workspace
+git clone git@github.com:canberkgurcan/alarmfw.git
+git clone git@github.com:canberkgurcan/alarmfw-api.git
+git clone git@github.com:canberkgurcan/alarmfw-observe.git
+git clone git@github.com:canberkgurcan/alarmfw-ui.git
+```
+
+### 2. Ortam Değişkenlerini Ayarla
+
+```bash
+cd alarmfw
+cp .env.example .env
+```
+
+`.env` dosyasını düzenle:
+
+```env
+# Token dosyalarının bulunduğu dizin (oc login tokenları, prometheus tokenları)
+SECRETS_DIR=/path/to/alarmfw-secrets
+
+# SMTP
+SMTP_HOST=mailrelay.internal
+SMTP_PORT=25
+SMTP_USER=alarmfw@sirket.com
+SMTP_PASS=
+SMTP_TO=ops@sirket.com
+
+# Zabbix
+ZABBIX_URL=https://zabbix.internal
+ZABBIX_TOKEN=
+```
+
+### 3. Secrets Dizinini Oluştur
+
+```bash
+mkdir -p /path/to/alarmfw-secrets
+# Token dosyaları bootstrap sonrası buraya yazılacak
+```
+
+### 4. Servisleri Başlat
+
+```bash
+docker compose up -d
+# veya rebuild ile:
+docker compose build && docker compose up -d
+```
+
+### 5. İlk Kurulum (Bootstrap)
+
+Servisler ayaktayken UI'ya gir → **Manage → Admin Console** ve bootstrap scriptini çalıştır:
+
+```bash
+bash /app/scripts/bootstrap.sh \
+  --cluster CLUSTER_ADI \
+  --ocp-api https://api.CLUSTER.DOMAIN:6443 \
+  --ocp-token TOKEN \
+  --prometheus-url https://thanos-querier.apps.CLUSTER.DOMAIN \
+  --prometheus-token PROMETHEUS_TOKEN \
+  --smtp-host mailrelay.internal --smtp-port 25 --smtp-to ops@sirket.com \
+  --zabbix-url https://zabbix.internal --zabbix-token ZABBIX_TOKEN
+```
+
+> Birden fazla cluster için scripti her cluster için ayrı çalıştır.
+
+### Servis Durumu
+
+```bash
+docker compose ps
+docker compose logs -f alarmfw-api
+```
+
+---
+
+## OpenShift (OCP) ile Kurulum
+
+### Gereksinimler
+
+- `oc` CLI kurulu ve cluster'a erişim
+- Nexus/Harbor registry erişimi
+- Jenkins (pipeline için)
+- ReadWriteMany destekli StorageClass (NFS veya Ceph)
+
+### 1. Namespace Oluştur
+
+```bash
+oc new-project alarmfw-prod
+```
+
+### 2. Registry Credentials Ekle
+
+```bash
+oc create secret docker-registry nexus-pull-secret \
+  --docker-server=REGISTRY_URL \
+  --docker-username=KULLANICI \
+  --docker-password=SIFRE \
+  -n alarmfw-prod
+
+oc secrets link default nexus-pull-secret --for=pull -n alarmfw-prod
+```
+
+### 3. PVC'leri Oluştur
+
+```bash
+# StorageClass'ı ortamına göre ocp/pvc.yaml'da ayarla
+oc apply -f ocp/pvc.yaml -n alarmfw-prod
+```
+
+### 4. Jenkins Pipeline'larını Çalıştır
+
+Jenkins'te her repo için pipeline tanımla ve şu değişkenleri ekle:
+
+| Değişken | Açıklama |
+|---|---|
+| `REGISTRY_URL` | Nexus/Harbor adresi (ör: `nexus.internal:5000`) |
+| `REGISTRY_CREDS` | Jenkins credential ID (Docker registry) |
+| `OCP_API_URL` | OpenShift API endpoint |
+| `OCP_TOKEN_CREDS` | Jenkins credential ID (OCP service account token) |
+| `DEPLOY_NAMESPACE` | Deploy namespace (ör: `alarmfw-prod`) |
+| `OCP_APPS_DOMAIN` | OCP apps domain — **sadece alarmfw-ui için** |
+
+Pipeline sırası önemli değil, paralel çalıştırılabilir:
+- `alarmfw` → `alarmfw/Jenkinsfile`
+- `alarmfw-api` → `alarmfw-api/Jenkinsfile`
+- `alarmfw-observe` → `alarmfw-observe/Jenkinsfile`
+- `alarmfw-ui` → `alarmfw-ui/Jenkinsfile`
+
+### 5. UI Route'unu Kontrol Et
+
+```bash
+oc get route alarmfw-ui -n alarmfw-prod
+# https://alarmfw-ui.apps.CLUSTER.DOMAIN
+```
+
+### 6. İlk Kurulum (Bootstrap)
+
+UI'ya gir → **Manage → Admin Console** ve aynı bootstrap scriptini çalıştır:
+
+```bash
+bash /app/scripts/bootstrap.sh \
+  --cluster CLUSTER_ADI \
+  --ocp-api https://api.CLUSTER.DOMAIN:6443 \
+  --ocp-token TOKEN \
+  --prometheus-url https://thanos-querier.apps.CLUSTER.DOMAIN \
+  --prometheus-token PROMETHEUS_TOKEN \
+  --smtp-host mailrelay.internal --smtp-port 25 --smtp-to ops@sirket.com \
+  --zabbix-url https://zabbix.internal --zabbix-token ZABBIX_TOKEN
+```
+
+> Bootstrap scripti container içinde çalışır, tokenları PVC'ye yazar.
+
+---
+
+## Dizin Yapısı
+
+```
+alarmfw/
+├── config/
+│   ├── notifiers/          # SMTP, Zabbix, outbox notifier config
+│   ├── policies/           # Dedup politikaları
+│   ├── checks/             # Manuel check YAML şablonları
+│   ├── generated/          # Otomatik üretilen check YAML'ları (gitignore)
+│   ├── observe.yaml        # Cluster Prometheus/Loki URL'leri (gitignore)
+│   └── run_server.yaml     # Ana run config
+├── ocp/
+│   ├── pvc.yaml            # PersistentVolumeClaim tanımları
+│   └── deployment.yaml     # OCP Deployment
+├── src/alarmfw/            # Python kaynak kodu
+├── Jenkinsfile
+├── docker-compose.yml
+└── .env.example
+```
+
+## Güvenlik
+
+- `.env` dosyası git'e gitmez
+- `config/observe.yaml` (gerçek URL'ler) git'e gitmez
+- `state/` dizini (alarm geçmişi) git'e gitmez
+- `setup.sh` ve `scripts/bootstrap.sh` git'e gitmez
+- Token dosyaları `SECRETS_DIR` dizininde tutulur, volume ile mount edilir
