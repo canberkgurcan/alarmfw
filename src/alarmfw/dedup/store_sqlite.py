@@ -20,13 +20,21 @@ class SqliteStateStore:
             c.execute(
                 """
                 CREATE TABLE IF NOT EXISTS alarm_state (
-                  dedup_key TEXT PRIMARY KEY,
-                  last_status TEXT NOT NULL,
-                  last_sent_ts INTEGER,
-                  last_change_ts INTEGER NOT NULL
+                  dedup_key      TEXT PRIMARY KEY,
+                  last_status    TEXT NOT NULL,
+                  last_sent_ts   INTEGER,
+                  last_change_ts INTEGER NOT NULL,
+                  alarm_name     TEXT,
+                  payload_json   TEXT
                 )
                 """
             )
+            # Migration: eski DB'lerde kolonlar yoksa ekle
+            for col in ("alarm_name TEXT", "payload_json TEXT"):
+                try:
+                    c.execute(f"ALTER TABLE alarm_state ADD COLUMN {col}")
+                except Exception:
+                    pass
 
     def get(self, dedup_key: str) -> Optional[Tuple[str, Optional[int], int]]:
         with self._conn() as c:
@@ -37,18 +45,28 @@ class SqliteStateStore:
             row = cur.fetchone()
             return (row[0], row[1], row[2]) if row else None
 
-    def upsert(self, dedup_key: str, last_status: Status, last_sent_ts: Optional[int], last_change_ts: int) -> None:
+    def upsert(
+        self,
+        dedup_key: str,
+        last_status: Status,
+        last_sent_ts: Optional[int],
+        last_change_ts: int,
+        alarm_name: Optional[str] = None,
+        payload_json: Optional[str] = None,
+    ) -> None:
         with self._conn() as c:
             c.execute(
                 """
-                INSERT INTO alarm_state(dedup_key,last_status,last_sent_ts,last_change_ts)
-                VALUES(?,?,?,?)
+                INSERT INTO alarm_state(dedup_key,last_status,last_sent_ts,last_change_ts,alarm_name,payload_json)
+                VALUES(?,?,?,?,?,?)
                 ON CONFLICT(dedup_key) DO UPDATE SET
                   last_status=excluded.last_status,
                   last_sent_ts=excluded.last_sent_ts,
-                  last_change_ts=excluded.last_change_ts
+                  last_change_ts=excluded.last_change_ts,
+                  alarm_name=excluded.alarm_name,
+                  payload_json=excluded.payload_json
                 """,
-                (dedup_key, last_status.value, last_sent_ts, last_change_ts),
+                (dedup_key, last_status.value, last_sent_ts, last_change_ts, alarm_name, payload_json),
             )
 
     @staticmethod

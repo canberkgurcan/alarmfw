@@ -8,4 +8,4 @@ notifiers:
     from: "${SMTP_USER}"
     to: ["${SMTP_TO}"]
     subject_prefix: "[ALARMFW]"
-    use_tls: true
+    use_tls: false

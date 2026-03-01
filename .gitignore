@@ -1,6 +1,9 @@
 # Hassas bilgiler - GIT'E GİRMEZ
 .env
 
+# Kurulum scripti (credentials içerir)
+setup.sh
+
 # Geçici/accidental dosyalar
 0
 config/generated/

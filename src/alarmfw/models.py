@@ -65,3 +65,4 @@ class AlarmPayload:
 @dataclass(frozen=True)
 class CheckResult:
     payload: AlarmPayload
+    repeat_interval_override: Optional[int] = None  # None=policy, 0=hemen, 900=15dk, 86400=suppress
