@@ -1,5 +1,4 @@
 notifiers:
   dev_outbox:
     type: "file_outbox"
-    dir: "/state/outbox"
-    prefix: "alarmfw"
+    directory: "/state/outbox"

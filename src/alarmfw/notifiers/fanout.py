@@ -5,7 +5,6 @@ from typing import Any, Dict, List
 from alarmfw.notifiers.zabbix_http import ZabbixHttpNotifier
 from alarmfw.notifiers.smtp_mail import SmtpMailNotifier
 from alarmfw.notifiers.file_outbox import FileOutboxNotifier
-from alarmfw.notifiers.italarm_webhook import ITAlarmWebhookNotifier
 
 log = logging.getLogger("alarmfw.notifier.fanout")
 
@@ -50,10 +49,6 @@ class NotifierFanout:
         elif ntype == "file_outbox":
             # file_outbox should ALWAYS work, even in dry-run
             inst = FileOutboxNotifier(ncfg)
-
-        elif ntype == "italarm_webhook":
-            inst = ITAlarmWebhookNotifier(ncfg)
-            inst = _DryRunWrapper(name, inst) if self.dry_run else inst
 
         else:
             raise ValueError(f"Unknown notifier type: {ntype}")

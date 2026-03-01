@@ -1,0 +1,10 @@
+checks:
+  - name: dummy_heartbeat
+    type: dummy
+    enabled: true
+    params:
+      message: "Heartbeat OK"
+    notify:
+      primary:
+        - dev_outbox
+      fallback: []

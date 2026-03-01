@@ -68,6 +68,32 @@ def _pod_table_html(pods: List[Dict[str, Any]]) -> str:
     """
 
 
+def _delta_html(delta: Dict[str, Any]) -> str:
+    if not delta:
+        return ""
+
+    items = ""
+    for pod in delta.get("new_pods") or []:
+        items += f'<li style="color:#e74c3c;margin:3px 0;">&#43; Yeni problem pod: <b>{pod}</b></li>'
+    for pod in delta.get("recovered_pods") or []:
+        items += f'<li style="color:#27ae60;margin:3px 0;">&#10003; İyileşen pod: <b>{pod}</b></li>'
+    for r in delta.get("restart_increases") or []:
+        items += (
+            f'<li style="color:#e67e22;margin:3px 0;">&#8593; Restart artışı: <b>{r["pod"]}</b>'
+            f'&nbsp;&nbsp;({r["from"]} &rarr; {r["to"]})</li>'
+        )
+
+    if not items:
+        return ""
+
+    return f"""
+    <div style="background:#fff8e1;border-left:4px solid #f39c12;border-radius:4px;padding:12px 16px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:bold;color:#b7770d;margin-bottom:6px;">Değişiklikler</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;font-family:monospace;">{items}</ul>
+    </div>
+    """
+
+
 def _build_html(payload: Dict[str, Any]) -> str:
     status   = payload.get("status", "UNKNOWN")
     severity = payload.get("severity", "")
@@ -82,6 +108,7 @@ def _build_html(payload: Dict[str, Any]) -> str:
     pod_count = evidence.get("count", len(pods))
     cluster   = evidence.get("cluster", "")
     namespace = evidence.get("namespace", "")
+    delta     = evidence.get("delta") or {}
 
     info_rows = ""
     for label, value in [
@@ -98,6 +125,7 @@ def _build_html(payload: Dict[str, Any]) -> str:
               <td style="padding:6px 12px;font-size:13px;color:#333;">{value}</td>
             </tr>"""
 
+    delta_section = _delta_html(delta)
     pod_table = _pod_table_html(pods)
 
     return f"""<!DOCTYPE html>
@@ -134,6 +162,7 @@ def _build_html(payload: Dict[str, Any]) -> str:
               {info_rows}
             </table>
 
+            {delta_section}
             {pod_table}
 
           </td>

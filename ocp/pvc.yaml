@@ -1,0 +1,32 @@
+# Ortak PersistentVolumeClaim'ler
+# Tüm alarmfw servisleri bu PVC'leri paylaşır.
+# ReadWriteMany için NFS veya Ceph tabanlı StorageClass gerekir.
+# Değiştirmek için: storageClassName alanını ortama göre ayarla.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alarmfw-config
+  labels:
+    app.kubernetes.io/part-of: alarmfw
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: nfs-storage   # ortama göre ayarla
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alarmfw-secrets
+  labels:
+    app.kubernetes.io/part-of: alarmfw
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 256Mi
+  # storageClassName: nfs-storage   # ortama göre ayarla
