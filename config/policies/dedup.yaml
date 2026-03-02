@@ -1,5 +1,5 @@
 dedup:
   repeat_interval_sec: 600
-  recovery_notify: false
+  recovery_notify: true
   recovery_cooldown_sec: 60
   error_repeat_interval_sec: 900
