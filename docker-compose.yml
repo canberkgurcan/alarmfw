@@ -36,9 +36,12 @@ services:
     environment:
       - ALARMFW_CONFIG=/config
       - ALARMFW_SECRETS=/secrets
+      - ALARMFW_ENV=/config/.env
+      - ALARMFW_STATE=/state
     volumes:
       - ./config:/config
       - ${SECRETS_DIR:-./secrets}:/secrets
+      - alarmfw-state:/state
       - /var/run/docker.sock:/var/run/docker.sock
 
   alarmfw-observe:
