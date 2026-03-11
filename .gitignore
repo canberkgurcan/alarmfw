@@ -1,5 +1,6 @@
 # Hassas bilgiler - GIT'E GİRMEZ
 .env
+secrets/
 
 # Kurulum scripti (credentials içerir)
 setup.sh
