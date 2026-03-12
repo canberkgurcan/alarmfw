@@ -6,6 +6,7 @@ includes:
   - notifiers/dev_outbox.yaml
   - notifiers/dev_smtp.yaml
   - policies/dedup.yaml
+  - policies/maintenance.yaml
   - generated/ocp_pod_health.yaml
 
 runtime:

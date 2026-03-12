@@ -1,0 +1,17 @@
+maintenance:
+  # Active silence windows.
+  # Matching is exact for alarm_name/cluster/namespace when provided.
+  # starts_at_utc / ends_at_utc must be ISO-8601 UTC (e.g. 2026-03-12T01:00:00Z).
+  silences: []
+
+  # Example:
+  # silences:
+  #   - id: deploy-webstore
+  #     enabled: true
+  #     alarm_name: "ocp_pod_health__webstore__esy2-digital"
+  #     cluster: "esy2-digital"
+  #     namespace: "webstore"
+  #     starts_at_utc: "2026-03-12T01:00:00Z"
+  #     ends_at_utc: "2026-03-12T02:00:00Z"
+  #     allow_recovery: false
+  #     reason: "planned deployment"

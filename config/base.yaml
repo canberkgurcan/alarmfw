@@ -2,6 +2,7 @@ includes:
   - notifiers/zabbix.yaml
   - notifiers/smtp.yaml
   - policies/dedup.yaml
+  - policies/maintenance.yaml
   - checks/dummy.yaml
   - checks/shell_example.yaml
 

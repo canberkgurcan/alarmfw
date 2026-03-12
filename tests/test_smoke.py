@@ -239,6 +239,56 @@ class EngineSmokeTest(unittest.TestCase):
                 count = conn.execute("SELECT COUNT(*) FROM alarm_state").fetchone()[0]
                 self.assertEqual(count, 0)
 
+    def test_maintenance_silence_suppresses_problem_notifications(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state_db = str(Path(td) / "state.sqlite")
+            cfg = {
+                "runtime": {"state_db": state_db},
+                "dedup": {
+                    "repeat_interval_sec": 3600,
+                    "recovery_notify": True,
+                    "recovery_cooldown_sec": 0,
+                    "error_repeat_interval_sec": 3600,
+                },
+                "maintenance": {
+                    "silences": [
+                        {
+                            "id": "deploy-window",
+                            "enabled": True,
+                            "cluster": "",
+                            "namespace": "",
+                            "alarm_name": "",
+                            "starts_at_utc": "2000-01-01T00:00:00Z",
+                            "ends_at_utc": "2999-01-01T00:00:00Z",
+                            "allow_recovery": False,
+                        }
+                    ]
+                },
+                "notifiers": {},
+                "checks": [
+                    {
+                        "name": "maintenance-smoke",
+                        "type": "shell_command",
+                        "params": {"command": "exit 1", "timeout_sec": 5},
+                        "notify": {"primary": ["noop"], "fallback": []},
+                    }
+                ],
+            }
+
+            sent_payloads: list[dict] = []
+
+            def fake_send(_self: NotifierFanout, payload: dict, primary: list[str], fallback: list[str]) -> None:
+                sent_payloads.append(payload)
+
+            with patch.object(NotifierFanout, "send_with_fallback", autospec=True, side_effect=fake_send):
+                code = run_all(cfg)
+
+            self.assertEqual(code, 1)
+            self.assertEqual(sent_payloads, [])
+            with sqlite3.connect(state_db) as conn:
+                rows = conn.execute("SELECT last_status FROM alarm_state").fetchall()
+            self.assertEqual(rows, [("PROBLEM",)])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
