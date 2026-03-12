@@ -39,6 +39,9 @@ cp .env.example .env
 # Token dosyalarının bulunduğu dizin (oc login tokenları, prometheus tokenları)
 SECRETS_DIR=/path/to/alarmfw-secrets
 
+# alarmfw-api için API key (UI bu anahtarı X-API-Key olarak gönderir)
+ALARMFW_API_KEY=change-this-to-a-long-random-string
+
 # SMTP
 SMTP_HOST=mailrelay.internal
 SMTP_PORT=25
@@ -117,6 +120,10 @@ oc create secret docker-registry nexus-pull-secret \
   -n alarmfw-prod
 
 oc secrets link default nexus-pull-secret --for=pull -n alarmfw-prod
+
+oc create secret generic alarmfw-api-auth \
+  --from-literal=apiKey='CHANGE_ME_LONG_RANDOM_KEY' \
+  -n alarmfw-prod
 ```
 
 ### 3. PVC'leri Oluştur
@@ -184,7 +191,7 @@ bash /app/scripts/bootstrap.sh \
 alarmfw/
 ├── config/
 │   ├── notifiers/          # SMTP, Zabbix, outbox notifier config
-│   ├── policies/           # Dedup politikaları
+│   ├── policies/           # Dedup + maintenance/silence politikaları
 │   ├── checks/             # Manuel check YAML şablonları
 │   ├── generated/          # Otomatik üretilen check YAML'ları (gitignore)
 │   ├── observe.yaml        # Cluster Prometheus/Loki URL'leri (gitignore)

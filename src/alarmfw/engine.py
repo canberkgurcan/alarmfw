@@ -7,6 +7,7 @@ from alarmfw.models import CheckResult, Status, AlarmPayload, Severity
 from alarmfw.checks import CHECK_REGISTRY
 from alarmfw.dedup.store_sqlite import SqliteStateStore
 from alarmfw.dedup.policy import DedupPolicy
+from alarmfw.maintenance import active_silence
 from alarmfw.notifiers.fanout import NotifierFanout
 from alarmfw.utils.time import utc_now_iso
 
@@ -63,6 +64,7 @@ def _should_notify(store: SqliteStateStore, policy: DedupPolicy, result: CheckRe
 def _process_result(
     store: SqliteStateStore,
     policy: DedupPolicy,
+    maintenance_cfg: Dict[str, Any],
     fanout: NotifierFanout,
     result: CheckResult,
     primary: List[str],
@@ -73,13 +75,23 @@ def _process_result(
     key = payload.dedup_key()
     now = store.now_ts()
 
-    notify_now, _is_recovery = _should_notify(store, policy, result)
+    notify_now, is_recovery = _should_notify(store, policy, result)
 
     prev = store.get(key)
     last_change_ts = now if (prev is None or prev[0] != payload.status.value) else (prev[2] if prev else now)
 
     alarm_name = payload.alarm_name
     payload_json = json.dumps(payload.to_dict())
+
+    if notify_now:
+        silence = active_silence(maintenance_cfg, payload, is_recovery=is_recovery, now_ts=now)
+        if silence:
+            notify_now = False
+            log.info(
+                "Notification suppressed by maintenance (id=%s, alarm=%s)",
+                silence.get("id", "no-id"),
+                payload.alarm_name,
+            )
 
     if notify_now:
         try:
@@ -103,6 +115,7 @@ def run_all(cfg: Dict[str, Any]) -> int:
 
     store = SqliteStateStore(state_db)
     policy = DedupPolicy.from_config(cfg)
+    maintenance_cfg = (cfg.get("maintenance") or {})
     fanout = NotifierFanout(cfg)
 
     checks: List[Dict[str, Any]] = list(cfg.get("checks", []) or [])
@@ -143,7 +156,7 @@ def run_all(cfg: Dict[str, Any]) -> int:
         results: List[CheckResult] = raw if isinstance(raw, list) else [raw]
 
         for result in results:
-            code = _process_result(store, policy, fanout, result, primary, fallback)
+            code = _process_result(store, policy, maintenance_cfg, fanout, result, primary, fallback)
             exit_code = max(exit_code, code)
 
     return exit_code

@@ -38,11 +38,14 @@ services:
       - ALARMFW_SECRETS=/secrets
       - ALARMFW_ENV=/config/.env
       - ALARMFW_STATE=/state
+      - ALARMFW_API_KEY=${ALARMFW_API_KEY}
+      - ALARMFW_API_KEY_ADMIN=${ALARMFW_API_KEY_ADMIN:-}
+      - ALARMFW_API_KEY_OPERATOR=${ALARMFW_API_KEY_OPERATOR:-}
+      - ALARMFW_API_KEY_READONLY=${ALARMFW_API_KEY_READONLY:-}
     volumes:
       - ./config:/config
       - ${SECRETS_DIR:-./secrets}:/secrets
       - alarmfw-state:/state
-      - /var/run/docker.sock:/var/run/docker.sock
 
   alarmfw-observe:
     build: ../alarmfw-observe
@@ -58,16 +61,26 @@ services:
       - ${SECRETS_DIR:-./secrets}:/secrets:ro
 
   alarmfw-ui:
-    build: ../alarmfw-ui
+    build:
+      context: ../alarmfw-ui
     image: alarmfw-ui:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
       - API_URL=http://alarmfw-api:8000
-      - NEXT_PUBLIC_OBSERVE_URL=http://localhost:8001
       - OBSERVE_URL=http://alarmfw-observe:8001
+      # Auth.js session secret (openssl rand -base64 32)
+      - AUTH_SECRET=${AUTH_SECRET}
+      # UI kullanıcı şifreleri
+      - UI_ADMIN_PASSWORD=${UI_ADMIN_PASSWORD}
+      - UI_OPERATOR_PASSWORD=${UI_OPERATOR_PASSWORD:-}
+      - UI_READONLY_PASSWORD=${UI_READONLY_PASSWORD:-}
+      # UI → API key eşlemesi
+      - ALARMFW_API_KEY=${ALARMFW_API_KEY}
+      - ALARMFW_API_KEY_ADMIN=${ALARMFW_API_KEY_ADMIN:-}
+      - ALARMFW_API_KEY_OPERATOR=${ALARMFW_API_KEY_OPERATOR:-}
+      - ALARMFW_API_KEY_READONLY=${ALARMFW_API_KEY_READONLY:-}
     depends_on:
       - alarmfw-api
       - alarmfw-observe
