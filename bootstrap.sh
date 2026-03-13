@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
+# SCAFFOLD SCRIPT — Projeyi sıfırdan oluşturur.
+# UYARI: Mevcut dosyaların üzerine yazar. Sadece boş/yeni dizinde çalıştır.
 set -euo pipefail
+
+# Mevcut projede yanlışlıkla çalıştırılmasını önle
+if [[ -f "pyproject.toml" || -f "Dockerfile" || -d "src" ]]; then
+    echo "HATA: Bu dizinde zaten bir proje var. bootstrap.sh yalnızca boş dizinde çalıştırılmalıdır." >&2
+    exit 1
+fi
 
 # Folders
 mkdir -p src/alarmfw/{checks,notifiers,dedup,utils}
