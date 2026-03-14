@@ -1,0 +1,76 @@
+# AlarmFW — Production Compose (pre-built images, no source code required)
+#
+# Kullanım:
+#   docker-compose -f docker-compose.prod.yml up -d
+
+services:
+
+  alarmfw:
+    image: alarmfw:latest
+    restart: unless-stopped
+    environment:
+      - ZABBIX_URL=${ZABBIX_URL:-}
+      - ZABBIX_TOKEN=${ZABBIX_TOKEN:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-25}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_TO=${SMTP_TO:-}
+    volumes:
+      - ./config:/config:ro
+      - ${SECRETS_DIR:-./secrets}:/secrets:ro
+      - alarmfw-state:/state
+    command: ["run", "--config", "/config/run_server.yaml"]
+
+  alarmfw-api:
+    image: alarmfw-api:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ALARMFW_CONFIG=/config
+      - ALARMFW_SECRETS=/secrets
+      - ALARMFW_STATE=/state
+      - ALARMFW_API_KEY=${ALARMFW_API_KEY}
+      - ALARMFW_API_KEY_ADMIN=${ALARMFW_API_KEY_ADMIN:-}
+      - ALARMFW_API_KEY_OPERATOR=${ALARMFW_API_KEY_OPERATOR:-}
+      - ALARMFW_API_KEY_READONLY=${ALARMFW_API_KEY_READONLY:-}
+    volumes:
+      - ./config:/config
+      - ${SECRETS_DIR:-./secrets}:/secrets
+      - alarmfw-state:/state
+
+  alarmfw-observe:
+    image: alarmfw-observe:latest
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - ALARMFW_CONFIG=/config
+      - ALARMFW_SECRETS=/secrets
+    volumes:
+      - ./config:/config:ro
+      - ${SECRETS_DIR:-./secrets}:/secrets:ro
+
+  alarmfw-ui:
+    image: alarmfw-ui:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://alarmfw-api:8000
+      - OBSERVE_URL=http://alarmfw-observe:8001
+      - AUTH_SECRET=${AUTH_SECRET}
+      - UI_ADMIN_PASSWORD=${UI_ADMIN_PASSWORD}
+      - UI_OPERATOR_PASSWORD=${UI_OPERATOR_PASSWORD:-}
+      - UI_READONLY_PASSWORD=${UI_READONLY_PASSWORD:-}
+      - ALARMFW_API_KEY=${ALARMFW_API_KEY}
+      - ALARMFW_API_KEY_ADMIN=${ALARMFW_API_KEY_ADMIN:-}
+      - ALARMFW_API_KEY_OPERATOR=${ALARMFW_API_KEY_OPERATOR:-}
+      - ALARMFW_API_KEY_READONLY=${ALARMFW_API_KEY_READONLY:-}
+    depends_on:
+      - alarmfw-api
+      - alarmfw-observe
+
+volumes:
+  alarmfw-state:
