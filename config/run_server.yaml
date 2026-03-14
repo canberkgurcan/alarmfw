@@ -4,6 +4,7 @@ includes:
   - policies/dedup.yaml
   - policies/maintenance.yaml
   - generated/ocp_cluster_snapshot.yaml
+  - generated/ocp_pod_health.yaml
 
 runtime:
   lock_file: "/state/alarmfw.lock"
