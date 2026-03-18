@@ -46,6 +46,7 @@ services:
       - ./config:/config
       - ${SECRETS_DIR:-./secrets}:/secrets
       - alarmfw-state:/state
+      - /var/run/docker.sock:/var/run/docker.sock
 
   alarmfw-observe:
     build: ../alarmfw-observe
