@@ -71,6 +71,8 @@ services:
     environment:
       - API_URL=http://alarmfw-api:8000
       - OBSERVE_URL=http://alarmfw-observe:8001
+      # Auth.js — public URL for redirect (logout vb.)
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
       # Auth.js session secret (openssl rand -base64 32)
       - AUTH_SECRET=${AUTH_SECRET}
       # UI kullanıcı şifreleri
